@@ -114,12 +114,13 @@ namespace _2RFramework.Activities
             // - Type (e.g., Write Line, If, etc.)
             // - Attributes (e.g., MessageBox text, If condition, etc.)
             var previousActivities = Activities.Take(_currentActivityIndex)
-                .Select(activity => TaskUtils.GetActivityInfo(faultContext, activity))
+                .Select(TaskUtils.GetActivityInfo)
                 .ToList();
-            var failedActivity = TaskUtils.GetActivityInfo(faultContext, Activities[_currentActivityIndex]);
+            var failedActivity = TaskUtils.GetActivityInfo(Activities[_currentActivityIndex]);
 
-            Console.WriteLine($"Exception in Task '{taskNameValue}', Activity #{failedActivity}: {propagatedException.Message}");
-            //Console.WriteLine($"Prior Activities: {System.Text.Json.JsonSerializer.Serialize(previousActivities)}");
+            Console.WriteLine($"Exception in Task '{taskNameValue}', Activity #{_currentActivityIndex}: {propagatedException.Message}");
+            Console.WriteLine($"Failed Activity: {failedActivity}");
+            Console.WriteLine($"Previous act: {string.Join(",", previousActivities)}");
 
             if (ContinueOnError)
             {
