@@ -19,8 +19,8 @@
     <PackageProjectUrl>https://docs.uipath.com/integrations/docs/how-to-create-activities</PackageProjectUrl>
     <PackageIconUrl>https://raw.githubusercontent.com/NuGet/Samples/master/PackageIconNuspecExample/icon.png</PackageIconUrl>
     <!--<PackageIcon>packageIcon.png</PackageIcon>--> <!--PackageIcon not yet supported in UiPath Studio-->
-    <AssemblyVersion>1.0.28.77</AssemblyVersion>
-    <FileVersion>1.0.28.77</FileVersion>
+    <AssemblyVersion>1.0.31.90</AssemblyVersion>
+    <FileVersion>1.0.31.90</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
@@ -57,6 +57,7 @@
     <DocumentationFile>bin\$(Configuration)\_2RFramework.Activities.Design.xml</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="UiPath.Workflow" Version="6.0.0-20240401-07" PrivateAssets="All" />
     <PackageReference Include="System.Activities.Core.Presentation" Version="6.0.0-*" PrivateAssets="All" />
   </ItemGroup>

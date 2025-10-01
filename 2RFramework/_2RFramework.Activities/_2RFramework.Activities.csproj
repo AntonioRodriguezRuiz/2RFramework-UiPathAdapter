@@ -8,11 +8,12 @@
   <PropertyGroup>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <DocumentationFile>bin\$(Configuration)\_2RFramework.Activities.xml</DocumentationFile>
-    <AssemblyVersion>1.0.24.73</AssemblyVersion>
-    <FileVersion>1.0.24.73</FileVersion>
+    <AssemblyVersion>1.0.27.86</AssemblyVersion>
+    <FileVersion>1.0.27.86</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Activities.Metadata" Version="6.0.0-*" PrivateAssets="All" />
     <PackageReference Include="UiPath.Workflow.Runtime" Version="6.0.0-20240401-07" PrivateAssets="All" />
   </ItemGroup>

@@ -1,14 +1,16 @@
+using _2RFramework.Activities.Properties;
+using _2RFramework.Activities.Utilities;
+using Newtonsoft.Json;
 using System;
 using System.Activities;
-using System.ComponentModel;
+using System.Activities.Statements;
 using System.Collections.Generic;
-using System.Linq;
-using _2RFramework.Activities.Properties;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using UiPath.Shared.Activities.Localization;
 using Activity = System.Activities.Activity;
-using System.Reflection;
-using _2RFramework.Activities.Utilities;
 
 namespace _2RFramework.Activities
 {
@@ -77,6 +79,7 @@ namespace _2RFramework.Activities
         protected override void CacheMetadata(NativeActivityMetadata metadata)
         {
             base.CacheMetadata(metadata);
+            metadata.AddDefaultExtensionProvider<TaskUtils.WorkflowInstanceInfo>((Func<TaskUtils.WorkflowInstanceInfo>)(() => new TaskUtils.WorkflowInstanceInfo()));
         }
 
         #endregion
@@ -109,18 +112,21 @@ namespace _2RFramework.Activities
         {
             var taskNameValue = TaskName.Get(context: faultContext);
 
+            // Get workflow variables using the utility method
+            var workflowVariables = TaskUtils.GetWorkflowVariables(faultContext);
+
             // We want the following properties of activities:
             // - Index
             // - Type (e.g., Write Line, If, etc.)
             // - Attributes (e.g., MessageBox text, If condition, etc.)
             var previousActivities = Activities.Take(_currentActivityIndex)
-                .Select(TaskUtils.GetActivityInfo)
+                .Select(a => TaskUtils.GetActivityInfo(a, workflowVariables))
                 .ToList();
-            var failedActivity = TaskUtils.GetActivityInfo(Activities[_currentActivityIndex]);
+            var failedActivity = TaskUtils.GetActivityInfo(Activities[_currentActivityIndex], workflowVariables);
 
             Console.WriteLine($"Exception in Task '{taskNameValue}', Activity #{_currentActivityIndex}: {propagatedException.Message}");
-            Console.WriteLine($"Failed Activity: {failedActivity}");
-            Console.WriteLine($"Previous act: {string.Join(",", previousActivities)}");
+            Console.WriteLine($"Failed Activity: {JsonConvert.SerializeObject(failedActivity)}");
+            Console.WriteLine($"Previous act: {JsonConvert.SerializeObject(previousActivities)}");
 
             if (ContinueOnError)
             {
