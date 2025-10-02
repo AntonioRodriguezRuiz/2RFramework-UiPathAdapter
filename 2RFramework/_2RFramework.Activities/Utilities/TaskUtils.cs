@@ -1,143 +1,156 @@
-﻿using Microsoft.CodeAnalysis.VisualBasic.Syntax;
-using System;
+﻿using System;
 using System.Activities;
-using System.Activities.Hosting;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using Activity = System.Activities.Activity;
 
-namespace _2RFramework.Activities.Utilities
+namespace _2RFramework.Activities.Utilities;
+
+/// <summary>
+///     Provides utility methods for workflow activities and task management.
+/// </summary>
+internal static class TaskUtils
 {
-    internal class TaskUtils
+    private static readonly List<string> ExcludedProperties = new() { "Result", "ResultType", "Id" };
+
+    /// <summary>
+    ///     Extracts activity information including properties and their values.
+    /// </summary>
+    /// <param name="activity">The activity to extract information from.</param>
+    /// <param name="variables">Dictionary of workflow variables.</param>
+    /// <returns>A list of objects containing activity information.</returns>
+    public static List<object> GetActivityInfo(Activity activity, Dictionary<string, object?> variables)
     {
-        public static List<object> GetActivityInfo(Activity activity, Dictionary<string, object?> variables)
+        var type = activity.GetType();
+        var activityInfo = new List<object>();
+
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            var excludedProps = new List<string>(){"Result", "ResultType", "Id"};
-            var type = activity.GetType();
-            var activityInfo = new List<object>();
+            if (ExcludedProperties.Contains(prop.Name))
+                continue;
 
-            foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                object? rawValue = prop.GetValue(activity);
-                if (excludedProps.Contains(prop.Name))
-                    continue;
+            var value = prop.GetValue(activity);
 
-                // Handle InArgument<T>
-                if (rawValue is Argument arg)
-                    rawValue = TryGetLiteralFromArgument(arg, variables);
-                if (rawValue == null)
-                    continue;
+            // Handle InArgument<T> and extract its value
+            if (value is Argument argument)
+                value = ExtractArgumentValue(argument, variables);
 
+            if (value == null)
+                continue;
 
-                if (prop.Name == "DisplayName")
-                    // We add the activity type at the top of the list
-                    activityInfo.Insert(0, new {
-                                ActivityType = rawValue,
-                            });
-                else
-                    activityInfo.Add(new {
-                                PropertyName = prop.Name,
-                                Value = rawValue,
-                            });
-            }
-
-            return activityInfo;
-        }
-
-        private static object? TryGetLiteralFromArgument(Argument arg, Dictionary<string, object?> variables)
-        {
-            // 0 will always be the Expression. We don't do GetProperty("Expression") because its duplicated
-            var exprProp = arg.GetType().GetProperties()[0]; 
-            var exprObj = exprProp.GetValue(arg);
-            if (exprObj == null) return null;
-
-            // Return the object if it's a Literal<T>
-            if (exprObj.GetType().GetProperty("Value") != null)
-                return exprObj.GetType().GetProperty("Value")?.GetValue(exprObj)?.ToString();
-
-            // Look for "ExpressionText" property on the expression, should work for text-type and selection entries
-            var valueProp = exprObj.GetType().GetProperty("ExpressionText");
-            if (valueProp == null) return null;
-            
-            // Get the ExpressionText value
-            var expressionText = valueProp.GetValue(exprObj) as string;
-            if (string.IsNullOrEmpty(expressionText)) return null;
-            
-            // Differentiate string from variable reference
-            // In UiPath:
-            // - String literals are wrapped in double quotes: "text"
-            // - Variable references are not wrapped in quotes: variableName
-            if (expressionText.StartsWith("\"") && expressionText.EndsWith("\""))
-            {
-                return expressionText;
-            }
+            if (prop.Name == "DisplayName")
+                // Activity type goes at the top of the list
+                activityInfo.Insert(0, new { ActivityType = value });
             else
-            {
-                return new
-                {
-                    Type = "VariableReference",
-                    VariableName = expressionText,
-                    Value = variables.GetValueOrDefault(expressionText)
-                };
-            }
+                activityInfo.Add(new { PropertyName = prop.Name, Value = value });
         }
 
-        public class WorkflowInstanceInfo : IWorkflowInstanceExtension
+        return activityInfo;
+    }
+
+    /// <summary>
+    ///     Attempts to extract a literal value or variable reference from an argument.
+    /// </summary>
+    /// <param name="argument">The argument to extract value from.</param>
+    /// <param name="variables">Dictionary of workflow variables.</param>
+    /// <returns>The extracted value or null if extraction fails.</returns>
+    private static object? ExtractArgumentValue(Argument argument, Dictionary<string, object?> variables)
+    {
+        var expressionObject = argument.Expression;
+
+        // Check if it's a Literal<T> by looking for the Value property
+        var valueProperty = expressionObject?.GetType().GetProperty("Value");
+        if (valueProperty != null)
+            return valueProperty.GetValue(expressionObject)?.ToString();
+
+        // Try to get the ExpressionText property (for text and selection entries)
+        var expressionTextProperty = expressionObject?.GetType().GetProperty("ExpressionText");
+        if (expressionTextProperty == null) return null;
+
+        var expressionText = expressionTextProperty.GetValue(expressionObject) as string;
+        if (string.IsNullOrEmpty(expressionText)) return null;
+
+        // Distinguish between string literals and variable references
+        return IsStringLiteral(expressionText) || !variables.ContainsKey(expressionText)
+            ? expressionText
+            : CreateVariableReference(expressionText, variables);
+    }
+
+    /// <summary>
+    ///     Determines if the expression text represents a string literal (wrapped in quotes).
+    /// </summary>
+    /// <param name="expressionText">The expression text to check.</param>
+    /// <returns>True if the text is a string literal; otherwise, false.</returns>
+    private static bool IsStringLiteral(string expressionText)
+    {
+        return expressionText.StartsWith("\"") && expressionText.EndsWith("\"");
+    }
+
+    /// <summary>
+    ///     Creates a variable reference object with name and value.
+    /// </summary>
+    /// <param name="variableName">The name of the variable.</param>
+    /// <param name="variables">Dictionary of workflow variables.</param>
+    /// <returns>An anonymous object representing the variable reference.</returns>
+    private static object CreateVariableReference(string variableName, Dictionary<string, object?> variables)
+    {
+        return new
         {
-            private WorkflowInstanceProxy _proxy;
+            Type = "VariableReference",
+            VariableName = variableName,
+            Value = variables.GetValueOrDefault(variableName)
+        };
+    }
 
-            public IEnumerable<object> GetAdditionalExtensions()
+    /// <summary>
+    ///     Gets all activity descendants from a root activity.
+    /// </summary>
+    /// <param name="root">The root activity.</param>
+    /// <param name="recursive">Whether to get descendants recursively.</param>
+    /// <returns>An enumerable of activities.</returns>
+    public static IEnumerable<Activity> GetDescendants(Activity root, bool recursive)
+    {
+        yield return root;
+
+        foreach (var child in WorkflowInspectionServices.GetActivities(root))
+            if (recursive)
+                foreach (var descendant in GetDescendants(child, true))
+                    yield return descendant;
+            else
+                yield return child;
+    }
+
+    /// <summary>
+    ///     Gets all workflow variables from the main sequence as a dictionary.
+    /// </summary>
+    /// <param name="activity">A native activity.</param>
+    /// <returns>Dictionary of variable names and their values.</returns>
+    public static Dictionary<string, object?> GetWorkflowVariables(Activity activity)
+    {
+        var workflowVariables = new Dictionary<string, object?>();
+
+        foreach (var local in activity.GetLocals())
+            try
             {
-                yield break;
-            }
+                // Get the variable property (first property of the local)
+                var variableProperty = local.GetType().GetProperties().FirstOrDefault();
 
-            public void SetInstance(WorkflowInstanceProxy instance) => this._proxy = instance;
+                var variable = variableProperty?.GetValue(local);
 
-            public WorkflowInstanceProxy GetProxy() => this._proxy;
-        }
+                // Get the Value property of the variable
+                var valueProperty = variable?.GetType().GetProperty("Value");
+                if (valueProperty == null)
+                    continue;
 
-        public static IEnumerable<Activity> GetDescendants(Activity root, bool recursive)
-        {
-            yield return root;
-            foreach (var child in WorkflowInspectionServices.GetActivities(root))
-            {
-                if (recursive)
-                    foreach (var d in GetDescendants(child, true))
-                        yield return d;
-                else
-                    yield return child;
-            }
-        }
-
-        /// <summary>
-        /// Gets all workflow variables from the main sequence as a dictionary
-        /// </summary>
-        /// <param name="context">The native activity context</param>
-        /// <returns>Dictionary of variable names and their values</returns>
-        public static Dictionary<string, object?> GetWorkflowVariables(NativeActivityContext context)
-        {
-            var workflowVariables = new Dictionary<string, object?>();
-            
-            var workflowActivities = GetDescendants(
-                context.GetExtension<WorkflowInstanceInfo>().GetProxy().WorkflowDefinition, 
-                false);
-            
-            // Main sequence should be the last activity under workflowActivities
-            var mainSequence = workflowActivities.LastOrDefault();
-
-            if (mainSequence == null) return workflowVariables;
-            foreach (var local in mainSequence.GetLocals())
-            {
-                var variable = local.GetType().GetProperties()[0].GetValue(local); // Duplicated property name
-                    
-                var value = variable?.GetType().GetProperty("Value")?.GetValue(variable);
+                var value = valueProperty.GetValue(variable);
                 workflowVariables.Add(local.Name, value);
             }
+            catch (Exception)
+            {
+                // Skip variables that can't be processed
+            }
 
-            return workflowVariables;
-        }
+        return workflowVariables;
     }
 }
